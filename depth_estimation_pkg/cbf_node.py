@@ -1,3 +1,10 @@
+"""
+ROS wrapper around cbf.py
+20 Hz timer -> call self.run() every 0.05s - 20 times a second 
+    camera is slow - keep trying to get most recent obstacle position at predictable rate
+publishes /cmd_vel, /haptic/force, /cbf/debug
+"""
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy

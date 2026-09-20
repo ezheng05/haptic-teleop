@@ -1,5 +1,5 @@
 """
-Extract paired color and depth frames from ROS bag for calib
+pulls 20 paired color/IR frames out of bag - already run, dont need again
 """
 
 import sqlite3

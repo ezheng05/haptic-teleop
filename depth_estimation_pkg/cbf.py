@@ -1,3 +1,38 @@
+"""
+just math, no ROS
+
+idea: instead of hard limit on how close you can be, we set allowed approach speed that shrinks in proportion to remaining margin 
+    -> can move but not that fast this close -> smooth deceleration
+
+barrier b = depth - r_safe
+    our margin (meters)
+    e.g., depth=2.0 -> b=1.7 -> lots of room
+          depth=0.3 -> b = 0 -> on boundary
+    controller's job is to never let b be negative
+
+constraint cos(a)*v <= y*b
+    gamma*b -> speed budget = c -> fastest permitted to close gap
+    e.g., budget c=0.8*b, b=1.7 -> c=1.36 -> way above v_max, no restriction
+                          b=0.2 -> c=0.16
+                          b=0.0 -> c=0 -> must be stopped exactly at boundary
+                          b=-0.1 -> c=-0.08 -> reverse
+    budget hits 0 when margin does -> glide to stop
+    enforce v<=yb -> force b decay at worst exponentially
+        close fixed fraction of remaining gap per second, not fixed amount (e.g., keep halving dist -> arbitrarily close but never arrive)
+    gamma = aggressiveness -> higher keeps speed until late, brake hard. lower ease off early.
+
+    cos(a) -> only motion toward obstacle counts
+        alpha -> bearing from camera center axis to obstacle pixel
+        cos(a)*v -> closing speed - part of motion toward obstacle
+
+    force law fl = kl * (v_safe - v_ref)
+        kf=0.5 -> newtons per m/s of refusal
+
+    f_max=0.3 N -> hard ceiling on hand
+
+defaults r_safe=0.3, gamma=0.8, kf=0.5, f_max=0.3
+"""
+
 import numpy as np
 
 FOCAL_X = 570.0

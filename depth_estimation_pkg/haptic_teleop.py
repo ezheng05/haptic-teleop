@@ -1,3 +1,14 @@
+"""
+bridges physical stylus:
+    position (mm) -> /cmd_vel_ref
+        stylus -> robot command
+        geomagic publishes /phantom/state with stylus position in mm
+    and 
+    /haptic/force -> device force
+        CBF force -> stylus motors
+        result goes out on /phantom/force_feedback
+"""
+
 import math
 import rclpy
 from rclpy.node import Node

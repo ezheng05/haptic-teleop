@@ -1,6 +1,7 @@
 """
 node.py - ROS2 node
 
+ROS wrapper around depth.py -> depth_node
 subscribes to cam images, runs depth est using depth.py, publishes results
 
 topics:

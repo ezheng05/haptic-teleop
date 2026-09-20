@@ -1,5 +1,7 @@
 """
 overlay.py - draw closest point marker on camera image
+    2D, pixels
+    crosshair + depth number -> /depth/overlay
 
 Subscribes to color image and closest point, draws circle at obstacle location.
 

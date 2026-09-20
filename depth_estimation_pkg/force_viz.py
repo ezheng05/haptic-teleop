@@ -1,5 +1,6 @@
 """
 force_viz.py - force/direction visualization node
+    3D arrow in RViz, meters -> depth/force_marker
 
 Subscribes to closest point, publishes visualization marker
 showing direction to obstacle as arrow in RViz.

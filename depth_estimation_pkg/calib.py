@@ -1,5 +1,5 @@
 """
-compare zoedepth pred with actual depth + calc scale/offset w lin reg
+run zoedepth on those 20 frames, linear fits scale/offset, saves plot
 """
 
 import numpy as np

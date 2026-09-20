@@ -1,4 +1,7 @@
-# camera_node.py - publishes webcam frames to /camera/color/image_raw
+"""
+camera_node.py - publishes webcam frames to /camera/color/image_raw
+only for testing without LIMO
+"""
 
 import rclpy
 from rclpy.node import Node
