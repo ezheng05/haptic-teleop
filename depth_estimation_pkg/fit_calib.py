@@ -3,6 +3,7 @@ run zoedepth on those 20 frames, linear fits scale/offset, saves plot
 """
 
 import numpy as np
+import os
 from PIL import Image
 from depth import DepthEstimator
 
@@ -10,6 +11,8 @@ from depth import DepthEstimator
 est = DepthEstimator(scale=1.0, offset=0.0)
 
 results = []
+
+np.random.seed(0)
 
 for i in range(20):
     color_path = f'/home/roboticslab/Documents/ellen/calibration_frames/color_{i:02d}.png'
@@ -75,6 +78,10 @@ print(f"scale: {scale:.4f}")
 print(f"offset: {offset:.4f}")
 print(f"r sqrd: {r_sqrd:.4f}")
 print(f"rmse: {rmse:.4f}m ({rmse*100:.1f}cm)")
+
+np.savez(os.path.expanduser('~/Documents/ellen/calib_data.npz'),
+         pred=all_pred, true=all_true, scale=scale, offset=offset,
+         r_sqrd=r_sqrd, rmse=rmse)
 
 # delete later
 # === Diagnostic plots ===
