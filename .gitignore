@@ -48,3 +48,8 @@ Thumbs.db
 *.mov
 *.wmv
 
+# ros 2 build artifacts
+build/
+install/
+log/
+backup/
