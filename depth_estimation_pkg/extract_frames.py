@@ -9,7 +9,7 @@ import os
 import struct
 
 # create output folder
-os.makedirs('calibFrames', exist_ok=True)
+os.makedirs('calibration_frames', exist_ok=True)
 
 # open bag db
 db = sqlite3.connect('calibration_bag/calibration_bag_0.db3') # creates connection obj, opens comm to db file

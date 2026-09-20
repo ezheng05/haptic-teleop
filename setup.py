@@ -23,6 +23,9 @@ setup(
             'depth_node = depth_estimation_pkg.node:main',
             'cbf_node = depth_estimation_pkg.cbf_node:main',
             'haptic_teleop = depth_estimation_pkg.haptic_teleop:main',
+            'overlay = depth_estimation_pkg.overlay:main',
+            'force_viz = depth_estimation_pkg.force_viz:main',
+            'validate = depth_estimation_pkg.validate:main'
         ],
     },
 )
