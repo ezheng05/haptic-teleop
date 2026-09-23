@@ -19,10 +19,8 @@ import torch
 from PIL import Image
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 
-# calibration: real_depth = scale * model_output + offset
-# calibrated for astra camera on limo
-DEPTH_SCALE = 0.2407
-DEPTH_OFFSET = 0.0502
+DEPTH_SCALE = 0.2526
+DEPTH_OFFSET = 0.0195
 
 class DepthEstimator:
     """
@@ -90,7 +88,7 @@ class DepthEstimator:
 
         return depth_map
     
-def find_closest(depth_map, margin=50):
+def find_closest(depth_map, margin=50, bottom_frac=0.35):
     """
     find closest pt in depth map
     ignore edges because often incorrect val at borders
@@ -106,9 +104,8 @@ def find_closest(depth_map, margin=50):
             direc - left, center, or right
     """
     h,w = depth_map.shape
-
-    # crop edges
-    inner = depth_map[margin:h-margin, margin:w-margin]
+    bottom = int(h*bottom_frac)
+    inner = depth_map[margin:h-bottom, margin:w-margin]
 
     min_depth = float(np.min(inner))
 

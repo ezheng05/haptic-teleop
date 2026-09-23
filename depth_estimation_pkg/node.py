@@ -20,7 +20,7 @@ from std_msgs.msg import Float32
 from geometry_msgs.msg import PointStamped
 from cv_bridge import CvBridge
 import numpy as np
-from depth_estimation_pkg.depth import DepthEstimator, find_closest # import depth est module
+from depth_estimation_pkg.depth import DepthEstimator, find_closest, DEPTH_OFFSET, DEPTH_SCALE # import depth est module
 
 class DepthNode(Node):
     # ROS2 node that est depth from cam imgs
@@ -66,8 +66,8 @@ class DepthNode(Node):
         # CvBridge - conv btwn ROS imgs and OpenCV/numpy
         self.bridge = CvBridge()
 
-        self.declare_parameter('depth_scale', 0.075)
-        self.declare_parameter('depth_offset', 0.0)
+        self.declare_parameter('depth_scale', DEPTH_SCALE)
+        self.declare_parameter('depth_offset', DEPTH_OFFSET)
 
         scale = self.get_parameter('depth_scale').value
         offset = self.get_parameter('depth_offset').value

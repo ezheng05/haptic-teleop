@@ -117,7 +117,7 @@ class ForceVizNode(Node):
             marker.color.r, marker.color.g, marker.color.b = 0.0, 1.0, 0.0  # green
 
         marker.lifetime.sec = 0
-        marker.lifetime.nanosec = 500000000  # 0.5 sec
+        marker.lifetime.nanosec = 0
 
         self.pub_marker.publish(marker)
 
