@@ -68,15 +68,17 @@ class DepthNode(Node):
 
         self.declare_parameter('depth_scale', DEPTH_SCALE)
         self.declare_parameter('depth_offset', DEPTH_OFFSET)
+        self.declare_parameter('depth_calib', 'quadratic')  # quadratic | linear
 
         scale = self.get_parameter('depth_scale').value
         offset = self.get_parameter('depth_offset').value
+        calib = self.get_parameter('depth_calib').value
 
         # load nn
-        self.estimator = DepthEstimator(scale=scale, offset=offset)
+        self.estimator = DepthEstimator(scale=scale, offset=offset, calib=calib)
         self.get_logger().info(
             f"Model loaded, using {self.estimator.device} "
-            f"(scale={scale}, offset={offset})"
+            f"(calib={calib}, scale={scale}, offset={offset})"
         )
 
         # flag to prevent processing multiple imgs at once

@@ -1,6 +1,6 @@
 """Validate ZoeDepth against tape measured ground truth"""
 
-import os, numpy as np
+import os, sys, numpy as np
 from rosbag2_py import SequentialReader, StorageOptions, ConverterOptions
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import Image
@@ -41,7 +41,9 @@ def middle_pair(bagdir):
             deserialize_message(dep[len(dep) // 2], Image))
 
 
-est = DepthEstimator(scale=SCALE, offset=OFFSET)
+CALIB = sys.argv[1] if len(sys.argv) > 1 else 'quadratic'   # or: linear
+est = DepthEstimator(scale=SCALE, offset=OFFSET, calib=CALIB)
+print(f"calibration: {CALIB}")
 print(f"{'bag':10} {'tape':>6} {'zoe':>7} {'IR':>7} {'zoe-tape':>9} {'IR-tape':>8}")
 rows = []
 

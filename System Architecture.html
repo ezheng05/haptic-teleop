@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>System Architecture.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h2 id="system-architecture">System Architecture</h2>
+<p>The full data flow is:</p>
+<pre class="hljs"><code><div>Geomagic Touch hardware
+    ↓ position (mm)
+omni_state.cpp  →  /phantom/state (OmniState)
+    ↑ force (N)
+/phantom/force_feedback (OmniFeedback)
+    ↑
+haptic_teleop.py  →  /cmd_vel_ref (Twist)
+    ↑                      ↓
+/haptic/force (WrenchStamped)
+    ↑
+cbf_node.py  →  /cmd_vel (Twist)  →  LIMO robot
+    ↑
+/depth/closest (PointStamped)
+    ↑
+depth_node  ←  camera
+</div></code></pre>
+<p>The haptic device does two things: it <strong>inputs</strong> (you move the stylus → robot command) and <strong>outputs</strong> (the CBF pushes back on the stylus when you're near an obstacle).</p>
+<hr>
+<h2 id="omnistatecpp--the-hardware-driver">omni_state.cpp — the hardware driver</h2>
+<p>This is the lowest-level piece. It runs two threads:</p>
+<p><strong>Thread 1: HD scheduler (1 kHz)</strong>
+<code>omni_state_callback()</code> is called by OpenHaptics at 1000Hz. Each call:</p>
+<ul>
+<li>Reads the transform matrix from the device (4×4 homogeneous matrix with position + rotation)</li>
+<li>Extracts position with axis swap: <code>position = (X, -Z, Y)</code> — this reorients from device coords to ROS-friendly coords</li>
+<li>Estimates velocity using a 2nd-order backward difference + low-pass Butterworth filter (cutoff 20Hz) to smooth out noise</li>
+<li>Extracts the quaternion orientation</li>
+<li>Reads button states</li>
+<li>Writes force to the device via <code>hdSetDoublev(HD_CURRENT_FORCE, feedback)</code></li>
+</ul>
+<p><strong>Thread 2: ROS executor</strong>
+<code>publish_omni_state()</code> runs at the configured rate (1000Hz per the launch file), publishing:</p>
+<ul>
+<li><code>/phantom/state</code> — full OmniState (position in mm, quaternion, velocity, buttons)</li>
+<li><code>/phantom/pose</code> — PoseStamped (position in meters, for tf broadcasting)</li>
+<li><code>/phantom/joint_states</code> — joint angles for rviz visualization</li>
+<li><code>/phantom/button</code> — button events when state changes</li>
+</ul>
+<p>The <code>force_callback</code> runs when something publishes to <code>/phantom/force_feedback</code>. It sets <code>method_force</code> which the scheduler callback can apply to the device.</p>
+<p><strong>What I fixed in omni_state.cpp:</strong></p>
+<p>Before my fix, the force logic was:</p>
+<pre class="hljs"><code><div><span class="hljs-keyword">for</span> (<span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">3</span>; i++) {
+    <span class="hljs-keyword">float</span> lock_force = ...;  <span class="hljs-comment">// spring toward lock_pos</span>
+    <span class="hljs-keyword">if</span> (omni_state-&gt;lock[i]) {
+        omni_state-&gt;force[i] = lock_force + omni_state-&gt;method_force[i];
+    }
+    <span class="hljs-comment">// if lock is false: force[i] is NEVER updated — stale value persists</span>
+}
+</div></code></pre>
+<p>Two problems:</p>
+<ol>
+<li><code>method_force</code> (from CBF) was only applied if <code>lock</code> was toggled on (by pressing both buttons simultaneously). So your CBF force feedback was silently ignored unless you happened to press both buttons.</li>
+<li>When <code>lock[i]</code> is false, <code>force[i]</code> is never zeroed — whatever was there before keeps getting sent to the device.</li>
+</ol>
+<p>After my fix:</p>
+<pre class="hljs"><code><div>omni_state-&gt;force = hduVector3Dd(<span class="hljs-number">0</span>, <span class="hljs-number">0</span>, <span class="hljs-number">0</span>);  <span class="hljs-comment">// zero each cycle</span>
+
+<span class="hljs-keyword">for</span> (<span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">3</span>; i++)
+    omni_state-&gt;force[i] = omni_state-&gt;method_force[i];  <span class="hljs-comment">// always apply cbf force</span>
+
+<span class="hljs-keyword">for</span> (<span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">3</span>; i++) {
+    <span class="hljs-keyword">if</span> (!omni_state-&gt;lock[i]) <span class="hljs-keyword">continue</span>;
+    <span class="hljs-keyword">double</span> err = omni_state-&gt;lock_pos[i] - omni_state-&gt;position[i];
+    <span class="hljs-keyword">double</span> kp = (i == <span class="hljs-number">2</span>) ? <span class="hljs-number">0.04</span> : <span class="hljs-number">0.03</span>;  <span class="hljs-comment">// reduced from 0.5!</span>
+    omni_state-&gt;force[i] += kp * err;
+}
+
+<span class="hljs-comment">// hard clamp at 0.5N</span>
+<span class="hljs-keyword">double</span> fmag = omni_state-&gt;force.magnitude();
+<span class="hljs-keyword">if</span> (fmag &gt; <span class="hljs-number">0.5</span>) omni_state-&gt;force *= (<span class="hljs-number">0.5</span> / fmag);
+</div></code></pre>
+<p>The old lock gain of <code>0.5</code> on the Z axis was extreme — if the stylus was 40mm from <code>lock_pos</code> (which was stuck at origin), that's <code>0.5 × 40 = 20N</code>. The device physically cannot exert more than ~3.3N. Trying to command 20N causes it to slam against its limits and oscillate. I reduced that gain to <code>0.04</code>.</p>
+<hr>
+<h2 id="hapticteleoppy--the-bridge">haptic_teleop.py — the bridge</h2>
+<p>This node translates between the physical device and ROS velocity commands. Two callbacks:</p>
+<p><strong><code>on_state()</code></strong> — reads stylus position, converts to <code>/cmd_vel_ref</code>:</p>
+<pre class="hljs"><code><div>cmd.linear.x  = deadzone(x_mm, dz, k_lin)   <span class="hljs-comment"># forward/back stylus → robot speed</span>
+cmd.angular.z = deadzone(y_mm, dz, k_ang)   <span class="hljs-comment"># left/right stylus → robot turning</span>
+</div></code></pre>
+<p>The dead zone prevents tiny hand tremors from commanding motion. Values outside the dead zone get scaled linearly.</p>
+<p><strong><code>on_force()</code></strong> — receives <code>/haptic/force</code> from the CBF, converts to device force:</p>
+<pre class="hljs"><code><div>rx = wrench.force.x * f_scale    <span class="hljs-comment"># scale down</span>
+ry = wrench.torque.z * f_scale
+<span class="hljs-comment"># clamp magnitude</span>
+<span class="hljs-comment"># low-pass filter (exponential moving average)</span>
+self.fx = alpha * rx + (<span class="hljs-number">1</span> - alpha) * self.fx
+</div></code></pre>
+<p><strong>What was broken:</strong></p>
+<p>The original code used <code>dead_zone=0.02</code> and <code>scale_linear=5.0</code>, treating position as if it were in meters. But the driver publishes in <strong>millimeters</strong> (the launch file sets <code>units: &quot;mm&quot;</code>). So:</p>
+<ul>
+<li>Stylus 50mm forward → <code>v_ref = (50 - 0.02) × 5.0 = 250 m/s</code></li>
+<li>This gets clipped to <code>v_max=0.3</code> in the CBF, but the gap <code>v_safe - v_ref</code> was always enormous</li>
+<li>With <code>kf=10</code>, force = <code>10 × (v_safe - 0.3) ≈ -4.5N</code> constantly</li>
+</ul>
+<p>My fix:</p>
+<ul>
+<li><code>dz=15.0</code> (15mm dead zone — reasonable for the device's ~160mm workspace)</li>
+<li><code>k_lin=0.004</code> — so 50mm past dead zone → <code>(50-15) × 0.004 = 0.14 m/s</code> (within a normal velocity range)</li>
+<li><code>f_scale=0.05</code> + <code>f_max=0.15N</code> + low-pass filter → forces are subtle and smooth</li>
+</ul>
+<hr>
+<h2 id="cbfpy--the-control-barrier-function-math">cbf.py — the control barrier function math</h2>
+<p>This is the core of the safety system from Zhang et al. 2020. No ROS here, pure math.</p>
+<p><strong>The idea:</strong> you define a &quot;barrier&quot; function <code>b(x) = depth - r_safe</code>. When <code>b &gt; 0</code> you're safe (far from obstacle). When <code>b &lt; 0</code> you're inside the safety radius. The CBF constraint forces the system to stay safe:</p>
+<pre class="hljs"><code><div>ḃ + γ·b ≥ 0
+</div></code></pre>
+<p>This means: if you're getting close to the boundary (<code>b</code> is small), you must be decelerating (<code>ḃ</code> must be positive or at least not too negative). <code>γ</code> controls how aggressively it enforces this.</p>
+<p><strong><code>barrier(depth, px)</code>:</strong></p>
+<p><code>b = depth - r_safe</code></p>
+<p>The bearing angle <code>α = arctan2(px - cx, fx)</code> tells you the angle to the obstacle relative to the camera's center axis. <code>cos(α)</code> tells you what fraction of your forward velocity is actually moving toward the obstacle:</p>
+<ul>
+<li>Obstacle dead ahead: <code>α=0</code>, <code>cos(α)=1.0</code> — full constraint</li>
+<li>Obstacle 45° to side: <code>cos(α)=0.7</code> — partial constraint</li>
+<li>Obstacle 90° to side: <code>cos(α)=0</code> — no constraint on forward speed</li>
+</ul>
+<p>The CBF constraint becomes: <code>cos(α) · v ≤ γ·b</code></p>
+<p><strong><code>solve(v_ref, w_ref, a, c)</code>:</strong></p>
+<p><code>a = cos(α)</code>, <code>c = γ·b</code></p>
+<p>If <code>a·v_ref ≤ c</code> → user command already satisfies the constraint, no modification.</p>
+<p>If violated → project onto the constraint boundary: <code>v_safe = c/a</code>. This is the closest safe velocity to what the user wanted (minimum modification principle from the QP).</p>
+<p><strong><code>force(v_ref, w_ref, v_safe, w_safe)</code>:</strong></p>
+<p>Zhang 2020 Eq. 6: <code>F = kf · (v_safe - v_ref)</code></p>
+<p>The force is zero when you're safe (no resistance). When the CBF has to intervene, the force is proportional to how much it had to change your command — pushing back on you to signal &quot;you're asking too much.&quot; The direction of the force guides you toward safe inputs.</p>
+<p><strong>What I changed:</strong></p>
+<ul>
+<li><code>kf</code>: <code>10.0 → 0.5</code> (Zhang uses ~1.0; 10 was generating multi-Newton forces from tiny velocity differences)</li>
+<li><code>f_max</code>: <code>2.5 → 0.3N</code> (conservative for testing)</li>
+<li><code>r_safe</code>: <code>0.4 → 0.3m</code> (slightly tighter but more realistic for LIMO footprint)</li>
+<li><code>gamma</code>: <code>1.5 → 0.8</code> (less aggressive braking onset)</li>
+</ul>
+<hr>
+<h2 id="cbfnodepy--the-ros-wrapper">cbf_node.py — the ROS wrapper</h2>
+<p>This is straightforward: it subscribes to <code>/cmd_vel_ref</code> and <code>/depth/closest</code>, runs <code>cbf.step()</code> at 20Hz, publishes results.</p>
+<p>The 20Hz timer is important — it decouples the control loop rate from the sensor rate. Even if the camera only updates at 5Hz (depth estimation is slow), the CBF still outputs at 20Hz using the last known obstacle position. This prevents the robot from drifting dangerously between depth frames.</p>
+<p>The only notable thing: <code>/depth/closest</code> uses <code>BEST_EFFORT</code> QoS (matches how <code>depth_node</code> publishes — it drops frames rather than queue them, since stale depth data is worse than no data).</p>
+<hr>
+<h2 id="depthnode-and-cameranode">depth_node and camera_node</h2>
+<p>These handle the perception side. The camera publishes raw frames; <code>depth_node</code> runs ZoeDepth (a monocular depth estimation model from Intel, fine-tuned on NYU + KITTI datasets). It finds the minimum-depth pixel in the inner region (ignoring 50px margins where the model is unreliable at edges), and publishes that as <code>/depth/closest</code> — a PointStamped where <code>point.x</code> = pixel column, <code>point.z</code> = depth in meters.</p>
+<p>The calibration <code>real_depth = 0.2407 × model_output + 0.0502</code> was measured empirically on the Astra camera by comparing ZoeDepth output against known distances.</p>
+<hr>
+<h2 id="why-the-test-command-caused-maximum-shaking">Why the test command caused maximum shaking</h2>
+<pre class="hljs"><code><div>ros2 topic pub /depth/closest ... point: {x: 320.0, y: 200.0, z: 0.3}
+</div></code></pre>
+<p>With z=0.3 and r_safe=0.4: <code>b = 0.3 - 0.4 = -0.1</code> — already inside the safety zone. The CBF must command <code>v ≤ γ·b / cos(0) = 0.8 × (-0.1) = -0.08 m/s</code> (reverse). Meanwhile, the position-unit bug made <code>v_ref</code> always saturate at 0.3 m/s. So force was always at max. Combined with the lock force issue and no force smoothing, the result was violent oscillation.</p>
+<p>For testing going forward, use z ≥ 0.5 initially, then slowly bring it down toward r_safe=0.3 to feel the force ramp in gradually.</p>
+
+</body>
+</html>

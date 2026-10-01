@@ -19,8 +19,18 @@ import torch
 from PIL import Image
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 
+# linear fit, 19 frames vs on-board IR (Sep 2026)
 DEPTH_SCALE = 0.2526
 DEPTH_OFFSET = 0.0195
+
+# quadratic refit, 7 tape-measured positions 0.30-1.50 m (24 Sep 2026)
+#   d = A*raw^2 + B*raw + C       rmse 2.3 cm, vs 18.7 cm for the linear fit
+# the parabola's vertex is at raw = -B/(2A) ~ 1.21; below that it turns back
+# UP, so a very close object would read as farther. below RAW_MIN the curve
+# is continued downward with the linear fit's slope (see calibrate()); above
+# RAW_MAX it is held flat. keeps the mapping monotone and conservative.
+DEPTH_QUAD = (0.1196, -0.2886, 0.4771)
+RAW_MIN, RAW_MAX = 1.21, 4.50
 
 class DepthEstimator:
     """
@@ -29,9 +39,19 @@ class DepthEstimator:
     each pixel value = dist from camera in m
     """
 
-    def __init__(self, device=None, scale=DEPTH_SCALE, offset=DEPTH_OFFSET):
+    def __init__(self, device=None, scale=None, offset=None, calib=None):
         # init depth estimator
         # args: device: cuda for GPU, cpu, or None for auto detect
+        #       calib:  'quadratic' | 'linear' | 'raw'
+        #               default is 'linear' when scale/offset are passed
+        #               (so older callers keep working), else 'quadratic'
+        if calib is None:
+            calib = 'linear' if (scale is not None or offset is not None) \
+                else 'quadratic'
+        if scale is None:
+            scale = DEPTH_SCALE
+        if offset is None:
+            offset = DEPTH_OFFSET
 
         if device is None:
             if torch.cuda.is_available():
@@ -43,6 +63,7 @@ class DepthEstimator:
         self.device = torch.device(device)
         self.scale = scale
         self.offset = offset
+        self.calib = calib
 
         # load model from hugging face, downloads model weights on first run
         model_name = "Intel/zoedepth-nyu-kitti"
@@ -84,10 +105,25 @@ class DepthEstimator:
 
         # convert from pytorch tensor to numpy arr
         depth_map = prediction.squeeze().cpu().numpy()
-        depth_map = depth_map * self.scale + self.offset
+        return self.calibrate(depth_map)
 
-        return depth_map
-    
+    def calibrate(self, raw):
+        # raw model output -> metres, per self.calib
+        if self.calib == 'raw':
+            return raw
+        if self.calib == 'quadratic':
+            a, b, c = DEPTH_QUAD
+            r = np.minimum(raw, RAW_MAX)
+            d = a * r * r + b * r + c
+            # below the vertex the parabola turns back up, which would make a
+            # very close object read as farther. continue downward from the
+            # vertex with the linear fit's slope instead, so closer stays
+            # closer and the barrier still trips.
+            d_vertex = a * RAW_MIN * RAW_MIN + b * RAW_MIN + c
+            d_lo = d_vertex + DEPTH_SCALE * (r - RAW_MIN)
+            return np.maximum(np.where(r < RAW_MIN, d_lo, d), 0.05)
+        return raw * self.scale + self.offset
+
 def find_closest(depth_map, margin=50, bottom_frac=0.35):
     """
     find closest pt in depth map
