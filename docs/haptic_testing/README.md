@@ -82,8 +82,9 @@ Same as Stage 2, with the driver clamp in `patches/omni_state.cpp` raised from 0
 
 ## Must fix before the live robot
 
-- **Docked stylus = full speed ahead.** The inkwell sits at `y` = +88 mm, which `haptic_teleop` maps to the +0.3 m/s maximum. Needs a dead-man switch on the stylus button, or a recentred zero.
-- **`cbf_node` stop-on-exit doesn't work.** On Ctrl-C it publishes a zero `Twist` after the ROS context is already shut down, so the stop never sends.
+- **Docked stylus = full speed ahead.** The inkwell sits at `y` = +88 mm, which `haptic_teleop` maps to the +0.3 m/s maximum. *Fix written, awaiting hardware test:* dead-man switch on the stylus button (`haptic_teleop` param `deadman`, default `grey`). Released → no commands and zero force.
+- **`cbf_node` stop-on-exit doesn't work.** On Ctrl-C it published a zero `Twist` after the ROS context was already shut down, so the stop never sent. *Fix written, awaiting hardware test:* both nodes now handle Ctrl-C/SIGTERM themselves and send zero command and force before exiting. `cbf_node` also stops the robot if `/cmd_vel_ref` goes silent for `cmd_timeout` (0.2 s).
+- **Stale depth.** If `depth_node` dies, `cbf_node` keeps using the last depth it received. Not yet addressed.
 
 ## Reproduce
 
