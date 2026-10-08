@@ -7,10 +7,10 @@ No robot in the loop yet. Lab PC, 7 Oct 2026.
 
 | component | setting |
 |---|---|
-| driver | `omni_common` (`~/ws_touch`), with `patches/omni_state.cpp`; 1 kHz, mm; 0.5 N hard clamp during these tests (raised to 0.8 N afterward) |
+| driver | `omni_common` (`~/ws_touch`), with `patches/omni_state.cpp`; 1 kHz, mm; 0.5 N hard clamp for Stages 1–2b, 0.8 N for 2c |
 | `depth_node` | quadratic calibration (`depth_calib:=quadratic`) |
 | `cbf_node` | `r_safe` 0.30 m, `gamma` 0.8, `kf` 0.5, `f_max` 0.3 N, 20 Hz |
-| `haptic_teleop` | dead zone 5 mm, `k_lin` 0.006, low-pass `f_alpha` 0.3; `f_scale` / `f_max` varied below |
+| `haptic_teleop` | dead zone 5 mm, `k_lin` 0.006, low-pass `f_alpha` 0.3; `f_scale` / `f_max` varied below (defaults now 8 / 0.8 N, from Stage 2c) |
 
 ## Stage 1 — synthetic depth
 
@@ -52,16 +52,33 @@ Grey = setup, ignored. Pink = filter active.
 
 Stage 2b, `f_scale` 4 (≈0.48 N peak, just under the driver clamp): more noticeable than `f_scale` 3 and definitely felt, though the size of the improvement was hard to judge. Not recorded.
 
+## Stage 2c — driver clamp raised to 0.8 N
+
+Same as Stage 2, with the driver clamp in `patches/omni_state.cpp` raised from 0.5 to 0.8 N (rebuilt in `~/ws_touch`, confirmed with `grep`). `haptic_teleop` at `f_scale` 8, `f_max` 0.8.
+
+![Stage 2c](stage2c_force_f08.png)
+
+| measurement | value |
+|---|---|
+| ramp, first activation to peak | 8.7 s (unchanged — set by the box's approach speed) |
+| peak force at stylus | 0.800 N (at the clamp, ~15–23 s) |
+| force while box held at boundary | 0.749 ± 0.042 N |
+| `u_ref` while active | 0.214 ± 0.011 m/s |
+
+- **The clamp now shapes the force.** The controller asks for ~0.11 N, which `f_scale` 8 turns into ~0.9 N, so the force ramps until about 0.33 m and then sits flat at 0.8 N: a growing warning that becomes a constant push near the boundary.
+- **The operator's hand responded.** `u_ref` varied about five times more than in Stage 2. At ~18.4 s the force pushed the hand back (0.225 → 0.20 m/s) before the operator pushed back, and on average the operator pushed *harder* while the force was on, consistent with bracing against a felt force.
+- **Operator report:** clearly stronger, "a lot more resistance", and preferred over the lower settings. Still possible to push through, as expected for a 0.8 N cue.
+
 ## Findings
 
 1. **The pipeline is correct end to end**: magnitude, direction and on/off behaviour all match the controller.
-2. **The force is too weak to be a useful cue** at the gains tested. 0.3 N is easily held against, and a force that builds over several seconds is much harder to notice than one that appears at once.
+2. **Up to 0.5 N the force is too weak to be a useful cue.** 0.3 N is easily held against, and a force that builds over several seconds is much harder to notice than one that appears at once. **At 0.8 N it is clearly felt** and the operator preferred it (Stage 2c).
 3. **The slow ramp is partly built into the CBF.** Near the boundary the filter slows the approach exponentially, with time constant 1/γ = 1.25 s, so the force creeps in. On the live robot the ramp should take roughly 3–4 s; in this test it was ~8.5 s because the box was slid slowly (~4 cm/s).
 
 ## Open questions
 
-- **Magnitude.** Raise the driver clamp toward ~0.8 N? The Touch is rated for ~0.88 N continuous, 3.3 N peak.
-- **Shape.** Should the operator feel a gentle growing warning or a clear stop? A steeper onset (higher `kf`, or higher `γ` so the barrier engages later and closes faster) would be more noticeable but less graded.
+- **Magnitude.** 0.8 N with `f_scale` 8 is the current preference. Going higher means approaching the Touch's ~0.88 N continuous rating (3.3 N peak), so sustained contact should stay at or below 0.8 N.
+- **Shape.** At `f_scale` 8 the force ramps and then flattens at the clamp. Is that the right cue, or should the onset be steeper (higher `kf`, or higher `γ` so the barrier engages later and closes faster), or the ramp kept fully graded below the clamp (lower `f_scale`, higher clamp)?
 
 ## Must fix before the live robot
 

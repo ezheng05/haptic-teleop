@@ -24,8 +24,10 @@ class HapticTeleopNode(Node):
         self.declare_parameter('dz', 5.0)         # dead zone in mm
         self.declare_parameter('k_lin', 0.006)    # mm -> m/s (forward/back axis)
         self.declare_parameter('k_ang', 0.006)    # mm -> rad/s (left/right axis)
-        self.declare_parameter('f_scale', 1.0)    # cbf force -> device force
-        self.declare_parameter('f_max', 0.15)     # max force to device (N)
+        # 8x / 0.8 N chosen in stage 2c (docs/haptic_testing); 0.8 N matches
+        # the driver's hard clamp in patches/omni_state.cpp
+        self.declare_parameter('f_scale', 8.0)    # cbf force -> device force
+        self.declare_parameter('f_max', 0.8)      # max force to device (N)
         self.declare_parameter('f_alpha', 0.3)    # low-pass filter coeff
         self.declare_parameter('f_on', True)
 
