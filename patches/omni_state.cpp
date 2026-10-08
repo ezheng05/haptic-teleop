@@ -332,7 +332,9 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
     }
 
     // clamp total force magnitude for safety
-    const double F_MAX = 0.5;
+    // 0.5 N was too weak to perceive as a cue (docs/haptic_testing). 0.8 N
+    // stays under the Touch's ~0.88 N continuous rating (3.3 N peak).
+    const double F_MAX = 0.8;
     double fmag = omni_state->force.magnitude();
     if (fmag > F_MAX)
         omni_state->force *= (F_MAX / fmag);
