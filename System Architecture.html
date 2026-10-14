@@ -384,104 +384,98 @@ cbf_node.py  →  /cmd_vel (Twist)  →  LIMO robot
 depth_node  ←  camera
 </div></code></pre>
 <p>The haptic device does two things: it <strong>inputs</strong> (you move the stylus → robot command) and <strong>outputs</strong> (the CBF pushes back on the stylus when you're near an obstacle).</p>
-<hr>
-<h2 id="omnistatecpp--the-hardware-driver">omni_state.cpp — the hardware driver</h2>
+<hr />
+<h2 id="omni_statecpp-the-hardware-driver">omni_state.cpp — the hardware driver</h2>
 <p>This is the lowest-level piece. It runs two threads:</p>
 <p><strong>Thread 1: HD scheduler (1 kHz)</strong>
-<code>omni_state_callback()</code> is called by OpenHaptics at 1000Hz. Each call:</p>
-<ul>
-<li>Reads the transform matrix from the device (4×4 homogeneous matrix with position + rotation)</li>
-<li>Extracts position with axis swap: <code>position = (X, -Z, Y)</code> — this reorients from device coords to ROS-friendly coords</li>
-<li>Estimates velocity using a 2nd-order backward difference + low-pass Butterworth filter (cutoff 20Hz) to smooth out noise</li>
-<li>Extracts the quaternion orientation</li>
-<li>Reads button states</li>
-<li>Writes force to the device via <code>hdSetDoublev(HD_CURRENT_FORCE, feedback)</code></li>
-</ul>
+<code>omni_state_callback()</code> is called by OpenHaptics at 1000Hz. Each call:
+- Reads the transform matrix from the device (4×4 homogeneous matrix with position + rotation)
+- Extracts position with axis swap: <code>position = (X, -Z, Y)</code> — this reorients from device coords to ROS-friendly coords
+- Estimates velocity using a 2nd-order backward difference + low-pass Butterworth filter (cutoff 20Hz) to smooth out noise
+- Extracts the quaternion orientation
+- Reads button states
+- Writes force to the device via <code>hdSetDoublev(HD_CURRENT_FORCE, feedback)</code></p>
 <p><strong>Thread 2: ROS executor</strong>
-<code>publish_omni_state()</code> runs at the configured rate (1000Hz per the launch file), publishing:</p>
-<ul>
-<li><code>/phantom/state</code> — full OmniState (position in mm, quaternion, velocity, buttons)</li>
-<li><code>/phantom/pose</code> — PoseStamped (position in meters, for tf broadcasting)</li>
-<li><code>/phantom/joint_states</code> — joint angles for rviz visualization</li>
-<li><code>/phantom/button</code> — button events when state changes</li>
-</ul>
+<code>publish_omni_state()</code> runs at the configured rate (1000Hz per the launch file), publishing:
+- <code>/phantom/state</code> — full OmniState (position in mm, quaternion, velocity, buttons)
+- <code>/phantom/pose</code> — PoseStamped (position in meters, for tf broadcasting)
+- <code>/phantom/joint_states</code> — joint angles for rviz visualization
+- <code>/phantom/button</code> — button events when state changes</p>
 <p>The <code>force_callback</code> runs when something publishes to <code>/phantom/force_feedback</code>. It sets <code>method_force</code> which the scheduler callback can apply to the device.</p>
 <p><strong>What I fixed in omni_state.cpp:</strong></p>
 <p>Before my fix, the force logic was:</p>
-<pre class="hljs"><code><div><span class="hljs-keyword">for</span> (<span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">3</span>; i++) {
-    <span class="hljs-keyword">float</span> lock_force = ...;  <span class="hljs-comment">// spring toward lock_pos</span>
-    <span class="hljs-keyword">if</span> (omni_state-&gt;lock[i]) {
+<pre class="hljs"><code><div>for (int i = 0; i &lt; 3; i++) {
+    float lock_force = ...;  // spring toward lock_pos
+    if (omni_state-&gt;lock[i]) {
         omni_state-&gt;force[i] = lock_force + omni_state-&gt;method_force[i];
     }
-    <span class="hljs-comment">// if lock is false: force[i] is NEVER updated — stale value persists</span>
+    // if lock is false: force[i] is NEVER updated — stale value persists
 }
 </div></code></pre>
-<p>Two problems:</p>
-<ol>
-<li><code>method_force</code> (from CBF) was only applied if <code>lock</code> was toggled on (by pressing both buttons simultaneously). So your CBF force feedback was silently ignored unless you happened to press both buttons.</li>
-<li>When <code>lock[i]</code> is false, <code>force[i]</code> is never zeroed — whatever was there before keeps getting sent to the device.</li>
-</ol>
+<p>Two problems:
+1. <code>method_force</code> (from CBF) was only applied if <code>lock</code> was toggled on (by pressing both buttons simultaneously). So your CBF force feedback was silently ignored unless you happened to press both buttons.
+2. When <code>lock[i]</code> is false, <code>force[i]</code> is never zeroed — whatever was there before keeps getting sent to the device.</p>
 <p>After my fix:</p>
-<pre class="hljs"><code><div>omni_state-&gt;force = hduVector3Dd(<span class="hljs-number">0</span>, <span class="hljs-number">0</span>, <span class="hljs-number">0</span>);  <span class="hljs-comment">// zero each cycle</span>
+<pre class="hljs"><code><div>omni_state-&gt;force = hduVector3Dd(0, 0, 0);  // zero each cycle
 
-<span class="hljs-keyword">for</span> (<span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">3</span>; i++)
-    omni_state-&gt;force[i] = omni_state-&gt;method_force[i];  <span class="hljs-comment">// always apply cbf force</span>
+for (int i = 0; i &lt; 3; i++)
+    omni_state-&gt;force[i] = omni_state-&gt;method_force[i];  // always apply cbf force
 
-<span class="hljs-keyword">for</span> (<span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">3</span>; i++) {
-    <span class="hljs-keyword">if</span> (!omni_state-&gt;lock[i]) <span class="hljs-keyword">continue</span>;
-    <span class="hljs-keyword">double</span> err = omni_state-&gt;lock_pos[i] - omni_state-&gt;position[i];
-    <span class="hljs-keyword">double</span> kp = (i == <span class="hljs-number">2</span>) ? <span class="hljs-number">0.04</span> : <span class="hljs-number">0.03</span>;  <span class="hljs-comment">// reduced from 0.5!</span>
+for (int i = 0; i &lt; 3; i++) {
+    if (!omni_state-&gt;lock[i]) continue;
+    double err = omni_state-&gt;lock_pos[i] - omni_state-&gt;position[i];
+    double kp = (i == 2) ? 0.3 : 0.03;  // stronger hold on vertical
     omni_state-&gt;force[i] += kp * err;
 }
 
-<span class="hljs-comment">// hard clamp at 0.5N</span>
-<span class="hljs-keyword">double</span> fmag = omni_state-&gt;force.magnitude();
-<span class="hljs-keyword">if</span> (fmag &gt; <span class="hljs-number">0.5</span>) omni_state-&gt;force *= (<span class="hljs-number">0.5</span> / fmag);
+// hard clamp at 0.8 N
+const double F_MAX = 0.8;
+double fmag = omni_state-&gt;force.magnitude();
+if (fmag &gt; F_MAX) omni_state-&gt;force *= (F_MAX / fmag);
 </div></code></pre>
-<p>The old lock gain of <code>0.5</code> on the Z axis was extreme — if the stylus was 40mm from <code>lock_pos</code> (which was stuck at origin), that's <code>0.5 × 40 = 20N</code>. The device physically cannot exert more than ~3.3N. Trying to command 20N causes it to slam against its limits and oscillate. I reduced that gain to <code>0.04</code>.</p>
-<hr>
-<h2 id="hapticteleoppy--the-bridge">haptic_teleop.py — the bridge</h2>
+<p>The old lock gain of <code>0.5</code> on the Z axis was extreme — if the stylus was 40mm from <code>lock_pos</code> (which was stuck at origin), that's <code>0.5 × 40 = 20N</code>. The device physically cannot exert more than ~3.3N. Trying to command 20N causes it to slam against its limits and oscillate. The vertical gain is now <code>0.3</code>, and the clamp keeps the total under 0.8 N either way.</p>
+<p>The clamp started at 0.5 N and was raised to 0.8 N after haptic testing showed 0.5 N was too weak to feel as a cue (<code>docs/haptic_testing</code>). 0.8 N stays under the Touch's ~0.88 N continuous rating.</p>
+<hr />
+<h2 id="haptic_teleoppy-the-bridge">haptic_teleop.py — the bridge</h2>
 <p>This node translates between the physical device and ROS velocity commands. Two callbacks:</p>
 <p><strong><code>on_state()</code></strong> — reads stylus position, converts to <code>/cmd_vel_ref</code>:</p>
-<pre class="hljs"><code><div>cmd.linear.x  = deadzone(x_mm, dz, k_lin)   <span class="hljs-comment"># forward/back stylus → robot speed</span>
-cmd.angular.z = deadzone(y_mm, dz, k_ang)   <span class="hljs-comment"># left/right stylus → robot turning</span>
+<pre class="hljs"><code><div>cmd.linear.x  = deadzone(x_mm, dz, k_lin)   # forward/back stylus → robot speed
+cmd.angular.z = deadzone(y_mm, dz, k_ang)   # left/right stylus → robot turning
 </div></code></pre>
 <p>The dead zone prevents tiny hand tremors from commanding motion. Values outside the dead zone get scaled linearly.</p>
 <p><strong><code>on_force()</code></strong> — receives <code>/haptic/force</code> from the CBF, converts to device force:</p>
-<pre class="hljs"><code><div>rx = wrench.force.x * f_scale    <span class="hljs-comment"># scale down</span>
+<pre class="hljs"><code><div>rx = wrench.force.x * f_scale    # scale down
 ry = wrench.torque.z * f_scale
-<span class="hljs-comment"># clamp magnitude</span>
-<span class="hljs-comment"># low-pass filter (exponential moving average)</span>
-self.fx = alpha * rx + (<span class="hljs-number">1</span> - alpha) * self.fx
+# clamp magnitude
+# low-pass filter (exponential moving average)
+self.fx = alpha * rx + (1 - alpha) * self.fx
 </div></code></pre>
 <p><strong>What was broken:</strong></p>
-<p>The original code used <code>dead_zone=0.02</code> and <code>scale_linear=5.0</code>, treating position as if it were in meters. But the driver publishes in <strong>millimeters</strong> (the launch file sets <code>units: &quot;mm&quot;</code>). So:</p>
+<p>The original code used <code>dead_zone=0.02</code> and <code>scale_linear=5.0</code>, treating position as if it were in meters. But the driver publishes in <strong>millimeters</strong> (the launch file sets <code>units: "mm"</code>). So:</p>
 <ul>
 <li>Stylus 50mm forward → <code>v_ref = (50 - 0.02) × 5.0 = 250 m/s</code></li>
 <li>This gets clipped to <code>v_max=0.3</code> in the CBF, but the gap <code>v_safe - v_ref</code> was always enormous</li>
 <li>With <code>kf=10</code>, force = <code>10 × (v_safe - 0.3) ≈ -4.5N</code> constantly</li>
 </ul>
-<p>My fix:</p>
-<ul>
-<li><code>dz=15.0</code> (15mm dead zone — reasonable for the device's ~160mm workspace)</li>
-<li><code>k_lin=0.004</code> — so 50mm past dead zone → <code>(50-15) × 0.004 = 0.14 m/s</code> (within a normal velocity range)</li>
-<li><code>f_scale=0.05</code> + <code>f_max=0.15N</code> + low-pass filter → forces are subtle and smooth</li>
-</ul>
-<hr>
-<h2 id="cbfpy--the-control-barrier-function-math">cbf.py — the control barrier function math</h2>
+<p>Current settings (after haptic testing):
+- <code>dz=5.0</code> (5 mm dead zone)
+- <code>k_lin=0.006</code>, so 25 mm past the dead zone → <code>25 × 0.006 = 0.15 m/s</code>
+- <code>f_scale=8</code>, <code>f_max=0.8 N</code>, low-pass <code>f_alpha=0.3</code> → a force that is clearly felt but still possible to push through
+- dead-man switch (<code>deadman</code>, default <code>grey</code>): no commands and zero force unless the stylus button is held, so a docked stylus can't drive the robot
+- on Ctrl-C or SIGTERM it sends zero force before exiting</p>
+<hr />
+<h2 id="cbfpy-the-control-barrier-function-math">cbf.py — the control barrier function math</h2>
 <p>This is the core of the safety system from Zhang et al. 2020. No ROS here, pure math.</p>
-<p><strong>The idea:</strong> you define a &quot;barrier&quot; function <code>b(x) = depth - r_safe</code>. When <code>b &gt; 0</code> you're safe (far from obstacle). When <code>b &lt; 0</code> you're inside the safety radius. The CBF constraint forces the system to stay safe:</p>
+<p><strong>The idea:</strong> you define a "barrier" function <code>b(x) = depth - r_safe</code>. When <code>b &gt; 0</code> you're safe (far from obstacle). When <code>b &lt; 0</code> you're inside the safety radius. The CBF constraint forces the system to stay safe:</p>
 <pre class="hljs"><code><div>ḃ + γ·b ≥ 0
 </div></code></pre>
 <p>This means: if you're getting close to the boundary (<code>b</code> is small), you must be decelerating (<code>ḃ</code> must be positive or at least not too negative). <code>γ</code> controls how aggressively it enforces this.</p>
 <p><strong><code>barrier(depth, px)</code>:</strong></p>
 <p><code>b = depth - r_safe</code></p>
-<p>The bearing angle <code>α = arctan2(px - cx, fx)</code> tells you the angle to the obstacle relative to the camera's center axis. <code>cos(α)</code> tells you what fraction of your forward velocity is actually moving toward the obstacle:</p>
-<ul>
-<li>Obstacle dead ahead: <code>α=0</code>, <code>cos(α)=1.0</code> — full constraint</li>
-<li>Obstacle 45° to side: <code>cos(α)=0.7</code> — partial constraint</li>
-<li>Obstacle 90° to side: <code>cos(α)=0</code> — no constraint on forward speed</li>
-</ul>
+<p>The bearing angle <code>α = arctan2(px - cx, fx)</code> tells you the angle to the obstacle relative to the camera's center axis. <code>cos(α)</code> tells you what fraction of your forward velocity is actually moving toward the obstacle:
+- Obstacle dead ahead: <code>α=0</code>, <code>cos(α)=1.0</code> — full constraint
+- Obstacle 45° to side: <code>cos(α)=0.7</code> — partial constraint
+- Obstacle 90° to side: <code>cos(α)=0</code> — no constraint on forward speed</p>
 <p>The CBF constraint becomes: <code>cos(α) · v ≤ γ·b</code></p>
 <p><strong><code>solve(v_ref, w_ref, a, c)</code>:</strong></p>
 <p><code>a = cos(α)</code>, <code>c = γ·b</code></p>
@@ -489,29 +483,27 @@ self.fx = alpha * rx + (<span class="hljs-number">1</span> - alpha) * self.fx
 <p>If violated → project onto the constraint boundary: <code>v_safe = c/a</code>. This is the closest safe velocity to what the user wanted (minimum modification principle from the QP).</p>
 <p><strong><code>force(v_ref, w_ref, v_safe, w_safe)</code>:</strong></p>
 <p>Zhang 2020 Eq. 6: <code>F = kf · (v_safe - v_ref)</code></p>
-<p>The force is zero when you're safe (no resistance). When the CBF has to intervene, the force is proportional to how much it had to change your command — pushing back on you to signal &quot;you're asking too much.&quot; The direction of the force guides you toward safe inputs.</p>
-<p><strong>What I changed:</strong></p>
-<ul>
-<li><code>kf</code>: <code>10.0 → 0.5</code> (Zhang uses ~1.0; 10 was generating multi-Newton forces from tiny velocity differences)</li>
-<li><code>f_max</code>: <code>2.5 → 0.3N</code> (conservative for testing)</li>
-<li><code>r_safe</code>: <code>0.4 → 0.3m</code> (slightly tighter but more realistic for LIMO footprint)</li>
-<li><code>gamma</code>: <code>1.5 → 0.8</code> (less aggressive braking onset)</li>
-</ul>
-<hr>
-<h2 id="cbfnodepy--the-ros-wrapper">cbf_node.py — the ROS wrapper</h2>
+<p>The force is zero when you're safe (no resistance). When the CBF has to intervene, the force is proportional to how much it had to change your command — pushing back on you to signal "you're asking too much." The direction of the force guides you toward safe inputs.</p>
+<p><strong>What I changed:</strong>
+- <code>kf</code>: <code>10.0 → 0.5</code> (Zhang uses ~1.0; 10 was generating multi-Newton forces from tiny velocity differences)
+- <code>f_max</code>: <code>2.5 → 0.3N</code> (conservative for testing)
+- <code>r_safe</code>: <code>0.4 → 0.3m</code> (slightly tighter but more realistic for LIMO footprint)
+- <code>gamma</code>: <code>1.5 → 0.8</code> (less aggressive braking onset)</p>
+<hr />
+<h2 id="cbf_nodepy-the-ros-wrapper">cbf_node.py — the ROS wrapper</h2>
 <p>This is straightforward: it subscribes to <code>/cmd_vel_ref</code> and <code>/depth/closest</code>, runs <code>cbf.step()</code> at 20Hz, publishes results.</p>
 <p>The 20Hz timer is important — it decouples the control loop rate from the sensor rate. Even if the camera only updates at 5Hz (depth estimation is slow), the CBF still outputs at 20Hz using the last known obstacle position. This prevents the robot from drifting dangerously between depth frames.</p>
-<p>The only notable thing: <code>/depth/closest</code> uses <code>BEST_EFFORT</code> QoS (matches how <code>depth_node</code> publishes — it drops frames rather than queue them, since stale depth data is worse than no data).</p>
-<hr>
-<h2 id="depthnode-and-cameranode">depth_node and camera_node</h2>
-<p>These handle the perception side. The camera publishes raw frames; <code>depth_node</code> runs ZoeDepth (a monocular depth estimation model from Intel, fine-tuned on NYU + KITTI datasets). It finds the minimum-depth pixel in the inner region (ignoring 50px margins where the model is unreliable at edges), and publishes that as <code>/depth/closest</code> — a PointStamped where <code>point.x</code> = pixel column, <code>point.z</code> = depth in meters.</p>
-<p>The calibration <code>real_depth = 0.2407 × model_output + 0.0502</code> was measured empirically on the Astra camera by comparing ZoeDepth output against known distances.</p>
-<hr>
-<h2 id="why-the-test-command-caused-maximum-shaking">Why the test command caused maximum shaking</h2>
+<p>It also stops the robot if <code>/cmd_vel_ref</code> goes quiet for <code>cmd_timeout</code> (0.2 s), and sends a zero command on Ctrl-C or SIGTERM before shutting down.</p>
+<p><code>/depth/closest</code> uses <code>BEST_EFFORT</code> QoS (matches how <code>depth_node</code> publishes — it drops frames rather than queue them, since stale depth data is worse than no data).</p>
+<hr />
+<h2 id="depth_node-and-camera_node">depth_node and camera_node</h2>
+<p>These handle the perception side. The camera publishes raw frames; <code>depth_node</code> runs ZoeDepth (a monocular depth estimation model from Intel, fine-tuned on NYU + KITTI datasets). It finds the minimum-depth pixel in the inner region (ignoring 50px margins where the model is unreliable at edges, and the bottom 35% of the frame, where the floor would otherwise be picked), and publishes that as <code>/depth/closest</code> — a PointStamped where <code>point.x</code> = pixel column, <code>point.z</code> = depth in meters.</p>
+<p>The default calibration is quadratic, <code>d = 0.1196·raw² - 0.2886·raw + 0.4771</code>, fit to 7 tape-measured positions from 0.30 to 1.50 m (2.3 cm RMSE). An earlier linear fit against the onboard IR sensor (<code>0.2526·raw + 0.0195</code>) was off by up to 13.5 cm, because the IR reads through transparent targets and the true relationship is curved. Select with <code>depth_calib:=quadratic|linear</code>.</p>
+<hr />
+<h2 id="why-the-test-command-caused-maximum-shaking-before-the-fixes-above">Why the test command caused maximum shaking (before the fixes above)</h2>
 <pre class="hljs"><code><div>ros2 topic pub /depth/closest ... point: {x: 320.0, y: 200.0, z: 0.3}
 </div></code></pre>
-<p>With z=0.3 and r_safe=0.4: <code>b = 0.3 - 0.4 = -0.1</code> — already inside the safety zone. The CBF must command <code>v ≤ γ·b / cos(0) = 0.8 × (-0.1) = -0.08 m/s</code> (reverse). Meanwhile, the position-unit bug made <code>v_ref</code> always saturate at 0.3 m/s. So force was always at max. Combined with the lock force issue and no force smoothing, the result was violent oscillation.</p>
+<p>With z=0.3 and the old r_safe=0.4: <code>b = 0.3 - 0.4 = -0.1</code> — already inside the safety zone. The CBF must command <code>v ≤ γ·b / cos(0) = 0.8 × (-0.1) = -0.08 m/s</code> (reverse). Meanwhile, the position-unit bug made <code>v_ref</code> always saturate at 0.3 m/s. So force was always at max. Combined with the lock force issue and no force smoothing, the result was violent oscillation.</p>
 <p>For testing going forward, use z ≥ 0.5 initially, then slowly bring it down toward r_safe=0.3 to feel the force ramp in gradually.</p>
-
 </body>
 </html>
