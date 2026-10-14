@@ -73,16 +73,19 @@ for (int i = 0; i < 3; i++)
 for (int i = 0; i < 3; i++) {
     if (!omni_state->lock[i]) continue;
     double err = omni_state->lock_pos[i] - omni_state->position[i];
-    double kp = (i == 2) ? 0.04 : 0.03;  // reduced from 0.5!
+    double kp = (i == 2) ? 0.3 : 0.03;  // stronger hold on vertical
     omni_state->force[i] += kp * err;
 }
 
-// hard clamp at 0.5N
+// hard clamp at 0.8 N
+const double F_MAX = 0.8;
 double fmag = omni_state->force.magnitude();
-if (fmag > 0.5) omni_state->force *= (0.5 / fmag);
+if (fmag > F_MAX) omni_state->force *= (F_MAX / fmag);
 ```
 
-The old lock gain of `0.5` on the Z axis was extreme — if the stylus was 40mm from `lock_pos` (which was stuck at origin), that's `0.5 × 40 = 20N`. The device physically cannot exert more than ~3.3N. Trying to command 20N causes it to slam against its limits and oscillate. I reduced that gain to `0.04`.
+The old lock gain of `0.5` on the Z axis was extreme — if the stylus was 40mm from `lock_pos` (which was stuck at origin), that's `0.5 × 40 = 20N`. The device physically cannot exert more than ~3.3N. Trying to command 20N causes it to slam against its limits and oscillate. The vertical gain is now `0.3`, and the clamp keeps the total under 0.8 N either way.
+
+The clamp started at 0.5 N and was raised to 0.8 N after haptic testing showed 0.5 N was too weak to feel as a cue (`docs/haptic_testing`). 0.8 N stays under the Touch's ~0.88 N continuous rating.
 
 ---
 
@@ -115,10 +118,12 @@ The original code used `dead_zone=0.02` and `scale_linear=5.0`, treating positio
 - This gets clipped to `v_max=0.3` in the CBF, but the gap `v_safe - v_ref` was always enormous
 - With `kf=10`, force = `10 × (v_safe - 0.3) ≈ -4.5N` constantly
 
-My fix:
-- `dz=15.0` (15mm dead zone — reasonable for the device's ~160mm workspace)
-- `k_lin=0.004` — so 50mm past dead zone → `(50-15) × 0.004 = 0.14 m/s` (within a normal velocity range)
-- `f_scale=0.05` + `f_max=0.15N` + low-pass filter → forces are subtle and smooth
+Current settings (after haptic testing):
+- `dz=5.0` (5 mm dead zone)
+- `k_lin=0.006`, so 25 mm past the dead zone → `25 × 0.006 = 0.15 m/s`
+- `f_scale=8`, `f_max=0.8 N`, low-pass `f_alpha=0.3` → a force that is clearly felt but still possible to push through
+- dead-man switch (`deadman`, default `grey`): no commands and zero force unless the stylus button is held, so a docked stylus can't drive the robot
+- on Ctrl-C or SIGTERM it sends zero force before exiting
 
 ---
 
@@ -173,24 +178,26 @@ This is straightforward: it subscribes to `/cmd_vel_ref` and `/depth/closest`, r
 
 The 20Hz timer is important — it decouples the control loop rate from the sensor rate. Even if the camera only updates at 5Hz (depth estimation is slow), the CBF still outputs at 20Hz using the last known obstacle position. This prevents the robot from drifting dangerously between depth frames.
 
-The only notable thing: `/depth/closest` uses `BEST_EFFORT` QoS (matches how `depth_node` publishes — it drops frames rather than queue them, since stale depth data is worse than no data).
+It also stops the robot if `/cmd_vel_ref` goes quiet for `cmd_timeout` (0.2 s), and sends a zero command on Ctrl-C or SIGTERM before shutting down.
+
+`/depth/closest` uses `BEST_EFFORT` QoS (matches how `depth_node` publishes — it drops frames rather than queue them, since stale depth data is worse than no data).
 
 ---
 
 ## depth_node and camera_node
 
-These handle the perception side. The camera publishes raw frames; `depth_node` runs ZoeDepth (a monocular depth estimation model from Intel, fine-tuned on NYU + KITTI datasets). It finds the minimum-depth pixel in the inner region (ignoring 50px margins where the model is unreliable at edges), and publishes that as `/depth/closest` — a PointStamped where `point.x` = pixel column, `point.z` = depth in meters.
+These handle the perception side. The camera publishes raw frames; `depth_node` runs ZoeDepth (a monocular depth estimation model from Intel, fine-tuned on NYU + KITTI datasets). It finds the minimum-depth pixel in the inner region (ignoring 50px margins where the model is unreliable at edges, and the bottom 35% of the frame, where the floor would otherwise be picked), and publishes that as `/depth/closest` — a PointStamped where `point.x` = pixel column, `point.z` = depth in meters.
 
-The calibration `real_depth = 0.2407 × model_output + 0.0502` was measured empirically on the Astra camera by comparing ZoeDepth output against known distances.
+The default calibration is quadratic, `d = 0.1196·raw² - 0.2886·raw + 0.4771`, fit to 7 tape-measured positions from 0.30 to 1.50 m (2.3 cm RMSE). An earlier linear fit against the onboard IR sensor (`0.2526·raw + 0.0195`) was off by up to 13.5 cm, because the IR reads through transparent targets and the true relationship is curved. Select with `depth_calib:=quadratic|linear`.
 
 ---
 
-## Why the test command caused maximum shaking
+## Why the test command caused maximum shaking (before the fixes above)
 
 ```
 ros2 topic pub /depth/closest ... point: {x: 320.0, y: 200.0, z: 0.3}
 ```
 
-With z=0.3 and r_safe=0.4: `b = 0.3 - 0.4 = -0.1` — already inside the safety zone. The CBF must command `v ≤ γ·b / cos(0) = 0.8 × (-0.1) = -0.08 m/s` (reverse). Meanwhile, the position-unit bug made `v_ref` always saturate at 0.3 m/s. So force was always at max. Combined with the lock force issue and no force smoothing, the result was violent oscillation.
+With z=0.3 and the old r_safe=0.4: `b = 0.3 - 0.4 = -0.1` — already inside the safety zone. The CBF must command `v ≤ γ·b / cos(0) = 0.8 × (-0.1) = -0.08 m/s` (reverse). Meanwhile, the position-unit bug made `v_ref` always saturate at 0.3 m/s. So force was always at max. Combined with the lock force issue and no force smoothing, the result was violent oscillation.
 
 For testing going forward, use z ≥ 0.5 initially, then slowly bring it down toward r_safe=0.3 to feel the force ramp in gradually.
